@@ -1,0 +1,804 @@
+---
+title: "Lista 1 de Administração Financeira II"
+output:
+  html_document: default
+---
+#### Data: 02/11/2021
+
+
+## Discente: Nadson Ângelo Silva Nogueira
+## Docente: Anderson Luiz Rezende Mól
+
+### Resumo
+
+O presente trabalho tem como objetivo apresentar os resultados da Lista Complementar de Atividades da disciplina de Administração Financeira II, lecionada pelo Professor Anderson Luiz Rezende Mól, Dr.
+
+```{r setup, include=FALSE}
+#R Script
+options(scipen = 999)
+pkg = c("timeSeries", "fPortfolio", "quantmod", "zoo", "caTools", "rugarch", "car", "PerformanceAnalytics", "readxl", "dplyr", "knitr","GGally")
+install.packages(pkg[!pkg%in%rownames(installed.packages())], quiet = T)
+sapply(pkg, require, character.only=T)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Respostas
+
+### Questão 1) 
+### Com base na planilha “Dados_Ações” faça:
+
+a) Calcule o retorno composto discreto do período jan/2018 a mar/2019 para as ações (VALE3, PETR4, BBDC4, KROT3, USIM5 e HGTX3);
+
+b) Calcule o retorno composto continuo do período jan/2018 a mar/2019 para as ações (VALE3, PETR4, BBDC4, KROT3, USIM5 e HGTX3);
+
+Os itens a) e b) foram respondidos logo abaixo:
+
+```{r}
+# Link para download do arquivo
+url = "https://github.com/nadsu077/Adm_FinII/raw/main/Dados_A%C3%A7%C3%B5es.xlsx"
+temp = tempfile() # Arquivo temporário
+download.file(url, temp, quiet = T) # Fazendo o download do arquivo
+
+df = as.data.frame(read_excel(temp)) # Lendo o arquivo usando o readxl
+dates = seq(as.Date(df[1,2]), as.Date(df[nrow(df),2]), "month") # Criando a sequencia de datas, de 2018-01-01 a 2019-03-01, mês a mês
+
+df.ts = ret.disc = ret.cont = list() # Criando as listas que irão receber os valores
+
+# Loop para transformar cada ação em uma Série Temporal usando o as.timeSeries do pacote timeSeries e calculando o retorno de cada ativo usando a função CalculateReturns com o argumento "discrete" para retorno discreto e "log" para retorno contínuo.
+for (i in 3:8){
+  df.ts[[i-2]] = as.timeSeries(df[,i], dates, frequency = 12)
+  ret.disc[[i-2]] = CalculateReturns(df.ts[[i-2]], method = "discrete")[-1,]
+  ret.cont[[i-2]] = CalculateReturns(df.ts[[i-2]], method = "log")[-1,]
+}
+
+# Compatibilizando as listas em um data frame, transformando em série temporal e omitindo os NA
+ret.cont = ret.cont %>% do.call(cbind, .) %>%
+  as.timeSeries() %>% na.omit()
+
+ret.disc = ret.disc %>% do.call(cbind, .) %>%
+  as.timeSeries() %>% na.omit()
+```
+
+Abaixo seguem os gráficos do Retorno Composto Discreto e o Retorno Composto Contínuo, respectivamente.
+
+```{r, echo=FALSE}
+# Gráficos dos retornos de cada ativo
+plot(ret.disc, main = "Retorno Composto Discreto")
+```
+
+```{r, echo=FALSE}
+plot(ret.cont, main = "Retorno Composto Contínuo")
+```
+
+c) Calcule o risco para cada um dos ativos
+
+```{r}
+df.ts = df.ts %>% do.call(cbind, .) %>% as.data.frame()
+
+df.ret.disc = ret.disc %>% as.data.frame()
+
+df.ret.cont = ret.cont %>% as.data.frame()
+
+stdev = list()
+for (i in 1:ncol(df.ret.disc)){
+  stdev[[i]] = data.frame(Risco_Disc_SD = sd(df.ret.disc[,i], na.rm = T),
+                          Risco_Disc_VAR = var(df.ret.disc[,i], na.rm = T),
+                          Risco_Cont_SD = sd(df.ret.cont[,i], na.rm = T),
+                          Risco_Cont_VAR = var(df.ret.cont[,i], na.rm = T),
+                          row.names = names(df)[i+2])
+}
+stdev = stdev %>% do.call(rbind, .) %>% t() %>% as.data.frame()
+print(stdev)
+
+```
+
+d) Calcule o Beta de mercado para as ações (VALE3, PETR4, BBDC4, KROT3, USIM5 e
+HGTX3) por meio da análise de regressão linear simples;
+e) O que pode dizer sobre os betas calculados?
+f) Se tivesse que investir em apenas um ativo, qual deles recomendaria o investimento?
+
+```{r}
+# d)
+lm.ativos = list()
+i = 3
+while (i < 9){
+  mdl = lm(df[,i] ~ IBOV, data = df)
+  lm.ativos[[i-2]] = summary(mdl)
+  i = i+1
+}
+names(lm.ativos) <- paste0("LM.Ativo_",names(df[,3:8]))
+lm.ativos
+
+
+```
+e)
+VALE3
+Cada unidade do índice ibovespa (IBOV) influencia no decréscimo de 4.506x10^-5 do ativo Vale3, o ß é estatisticamente significante, pois o p-value (0.165) está acima de 0.05 (margem de significância estatística).
+
+PETR4
+Cada unidade do índice ibovespa (IBOV) influencia no acréscimo de 4.018x10^-4 do ativo Vale3, o ß não é estatisticamente significante, pois o p-value (0.00022) está abaixo de 0.05 (margem de significância estatística).
+
+BBDC4
+Cada unidade do índice ibovespa (IBOV) influencia no acréscimo de 7.7x10^-4 do ativo BBDC4, o ß não é estatisticamente significante, pois o p-value (~ 0) está abaixo de 0.05 (margem de significância estatística).
+
+KROT3
+Cada unidade do índice ibovespa (IBOV) influencia no acréscimo de 2.77x10^-5 do ativo KROT3, o ß é estatisticamente significante, pois o p-value (0.775) está acima de 0.05 (margem de significância estatística).
+
+USIM5
+Cada unidade do índice ibovespa (IBOV) influencia no acréscimo de 9.414x10^-5 do ativo USIM5, o ß não é estatisticamente significante, pois o p-value (0.0402) está abaixo de 0.05 (margem de significância estatística).
+
+HGTX3
+Cada unidade do índice ibovespa (IBOV) influencia no acréscimo de 7.58x10^-4 do ativo HGTX3, o ß não é estatisticamente significante, pois o p-value (~ 0) está abaixo de 0.05 (margem de significância estatística).
+
+f)
+Pela análise dos Betas e o p-valor, seria recomendado o investimento no ativo KROT3, pois apresentou valor de Beta significante, bem como o intercepto, tendo o valor de beta igual a 2.77x10^-5 acrescido no ativo para cada unidade do índice ibovespa (IBOV), sendo o valor de 9.52 a quantia do ativo KROT3 para quando o índice ibovespa for igual a zero.
+
+### Questão 2) 
+### Ainda com base na planilha “Dados_Ações”, considere, agora, investir em Petr4 e CDI. Neste aspecto:
+
+a) Encontre o valor esperado para o retorno mensal da Petr4 e CDI;
+
+```{r}
+names(df.ret.cont) = names(df.ret.disc) = names(df)[3:8]
+
+cat("Retorno Discreto Médio da PTR4:\n", round(mean(df.ret.disc[,"Petr4"]), 4),
+    "\n\n",
+    "Retorno Contínuo Médio da PTR4:\n", round(mean(df.ret.cont[,"Petr4"]), 4),
+    sep = "")
+```
+
+```{r}
+cdi = data.frame(CalculateReturns(as.timeSeries((df[,"CDI"]), dates, frequency = 12), method = "discrete")[-1,],
+                 CalculateReturns(as.timeSeries((df[,"CDI"]), dates, frequency = 12), method = "log")[-1,])
+names(cdi) = c("cdi_disc", "cdi_cont")
+
+cat("Retorno Discreto Médio do CDI:\n", round(mean(cdi[,1]), 4),
+    "\n\n",
+    "Retorno Contínuo Médio do CDI:\n", round(mean(cdi[,2]), 4),
+    sep = "")
+```
+
+b) Determine os riscos individuais para Petr4 e CDI
+
+```{r}
+risco = data.frame(SD_Disc_CDI = sd(cdi[,1], na.rm = T),
+                   SD_Cont_CDI = sd(cdi[,2], na.rm = T),
+                   SD_Disc_PETR4 = sd(df.ret.disc[,"Petr4"], na.rm = T),
+                   SD_Cont_PETR4 = sd(df.ret.cont[,"Petr4"], na.rm = T),
+                   row.names = "Risco")
+
+print(risco)
+```
+
+c) Calcule os retornos esperados e riscos para uma carteira de Petr4 e CDI com diferentes investimentos em Petr4 (0%, 10%, 20%, 30%, 40%, 50%, 60%, 70%, 80%, 90% e 100%).
+
+d) Há alguma região de investimento antieconômica?
+Resposta da d)
+A região atieconômica fica situada abaixo da região traçada pela linha horizontal roxa, dado pelo retorno de 2.65% e risco de 2.65%.
+
+```{r}
+ptr4.cdi = data.frame(PETR4_DISC = df.ret.disc[,"Petr4"], 
+                      CDI_DISC = cdi[,"cdi_disc"])
+ggpairs(ptr4.cdi)
+correla = c(-1, cor(ptr4.cdi)[1,2], 1)
+
+WA = seq(0, 1, 0.05)
+WB = seq(1, 0, -0.05)
+
+Risco = list()
+for(i in 1:length(correla)){
+  # risco(A,B) = sqrt(o²A * W²A + o²B * W²B + 2 * WA * WB * Corr(A,B) * oA * oB)
+  Risco[[i]] = data.frame(x = sqrt(var(ptr4.cdi[,1]) * WA^2 + var(ptr4.cdi[,2]) * WB^2 + 2 * WA * WB * correla[i] * sd(ptr4.cdi[,1]) * sd(ptr4.cdi[,2])))
+}
+Risco = do.call(cbind, Risco)
+
+Retorno = mean(ptr4.cdi[,1]) * WA + mean(ptr4.cdi[,2]) * WB
+
+df2 = data.frame(WA, WB, Risco, Retorno)
+names(df2)[3:5] <- c("Risco_Petr4_CDI-1", "Risco_Petr4_CDI-Real", "Risco_Petr4_CDI+1")
+names(df2)
+
+wA = (var(ptr4.cdi[,2])-(correla[2]*sd(ptr4.cdi[,1])*sd(ptr4.cdi[,2])))/((var(ptr4.cdi[,1])+var(ptr4.cdi[,2]))-(2*correla[2]*sd(ptr4.cdi[,1])*sd(ptr4.cdi[,2])))
+wB = 1-wA
+
+risco = sqrt(var(ptr4.cdi[,1]) * wA^2 + var(ptr4.cdi[,2]) * wB^2 + 2 * wA * wB * correla[2] * sd(ptr4.cdi[,1]) * sd(ptr4.cdi[,2]))
+retorno = mean(ptr4.cdi[,1]) * wA + mean(ptr4.cdi[,2]) * wB
+
+names(df2)
+
+plot(df2[,3], df2[,"Retorno"], col = "darkred", type = "l", xlab = "Risco", ylab = "Retorno") 
+lines(df2[,4], df2[,"Retorno"], col = "darkblue") 
+lines(df2[,5], df2[,"Retorno"], col = "darkgreen")
+points(risco, retorno, col = "purple")
+abline(v = risco, h = retorno, col = "purple")
+text(x = 0.095, y = 0.028, paste0("(",round(risco,4)*100, "%, ", round(retorno,4)*100,"%)"))
+
+```
+
+### Questão 3)
+### Um título A tem retorno esperado igual a 12,4% e seu retorno tem desvio padrão igual a 8,5%. O título B tem retorno esperado de 18,9% e desvio padrão de 15,7%a.a.. De posse dessa informação: 
+
+a) Qual deve ser o retorno esperado de uma carteira composta por 30% do título A e 70%
+do título B?
+
+b) Sendo o coeficiente de correlação entre os dois retornos de A e B igual a 0,15, qual é o
+risco da carteira?
+
+```{r}
+df = data.frame(Titulo.A = c(0.124, 0.085), Titulo.B = c(0.189, 0.157),row.names = c("E[R]", "SD"))
+
+correla = c(-1, .15, 1)
+
+WA = seq(0, 1, 0.05)
+WB = seq(1, 0, -0.05)
+
+Risco = list()
+for(i in 1:length(correla)){
+  # risco(A,B) = sqrt(o²A * W²A + o²B * W²B + 2 * WA * WB * Corr(A,B) * oA * oB)
+  Risco[[i]] = data.frame(x = sqrt(df[2,1]^2 * WA^2 + df[2,2]^2 * WB^2 + 2 * WA * WB * correla[i] * df[2,1] * df[2,2]))
+}
+Risco = do.call(cbind, Risco)
+
+Retorno = df[1,1] * WA + df[1,2] * WB
+
+df2 = data.frame(WA, WB, Risco, Retorno)
+names(df2)[3:5] <- c("Risco-1", "Risco-Real", "Risco+1")
+
+wA = (df[2,2]^2-(correla[2]*df[2,1]*df[2,2]))/((df[2,1]^2+df[2,2]^2)-(2*correla[2]*df[2,1]*df[2,2]))
+wB = 1-wA
+
+risco = sqrt(df[2,1]^2 * wA^2 + df[2,2]^2 * wB^2 + 2 * wA * wB * correla[2] * df[2,1] * df[2,2])
+retorno = df[1,1] * wA + df[1,2] * wB
+
+plot(df2[,3], df2[,"Retorno"], col = "darkred", type = "l", xlab = "Risco", ylab = "Retorno") 
+lines(df2[,4], df2[,"Retorno"], col = "darkblue") 
+lines(df2[,5], df2[,"Retorno"], col = "darkgreen")
+points(risco, retorno, col = "purple")
+points(sqrt(df[2,1]^2 * 0.3^2 + df[2,2]^2 * 0.7^2 + 2 * 0.3 * 0.7 * correla[2] * df[2,1] * df[2,2]), 
+       df[1,1] * 0.3 + df[1,2] * 0.7, col = "black")
+abline(v = risco, h = retorno, col = "purple")
+text(x = 0.06, y = 0.14, paste0("(",round(risco,4)*100, "%, ", round(retorno,4)*100,"%)"))
+```
+
+### Questão 4) 
+### Um título B tem Beta a 1,35 e o título C tem Beta de 0,851
+
+a) Qual o Beta de uma carteira composta por 30% do título B e 70% do título C?
+b) Por que a forma de cálculo do risco de uma carteira, medido pelo desvio padrão, é
+diferente do cálculo do risco de uma carteira medido pelo coeficiente Beta?
+
+```{r}
+beta.B = 1.35; beta.C = 0.851; wb = 0.3; wc = 0.7
+
+beta.cart = beta.B*wb + beta.C*wc
+cat("Valor de beta igual a", beta.cart)
+```
+Porque o ß mede o risco sistemático dos ativos, porém não mede o diversificável. No desvio-padrão está contido o risco total dos ativos.
+
+
+### Questão 5) 
+### A ação A tem um retorno esperado de 16% e beta de 1,857. A ação B apresenta retorno esperado de 8,4% e beta de 0,820. O retorno da carteira de mercado ( KM ) é 10% e o retorno livre de risco ( K RF ) é 6,0%. Considerando os pesos de 35% para a ação A e 65% para a ação B.
+
+a) Calcule o retorno esperado dessa carteira
+b) Calcule o beta dessa carteira
+c) Essa carteira tem mais ou menos risco sistemático do que um ativo médio
+representado pela carteira de mercado?
+d) Qual é o prêmio de risco da carteira de mercado?
+e) Qual o prêmio de risco da carteira formada pelas ações A e B?
+
+```{r}
+A.ret.esp = .16; beta.A = 1.857; B.ret.esp = .084; beta.B = .82; KM = .1; KRF = .06; WA = .35; WB = .65
+
+ret.esp.cart = A.ret.esp*WA + B.ret.esp*WB
+
+
+
+```
+
+### Questão 6)
+### Suponha que um investidor possua 1000 ações da cia A e 3000 ações da Cia B. As ações da Cia A são cotadas a 180 u.m. por unidade, enquanto as ações da Cia B são negociadas a 90 u.m.. O retorno esperado da Cia A é igual a 15%, enquanto que o da B é de 20%. O desvio padrão do retorno de A é igual a 8%, ao passo que o da B é igual a 20%. O coeficiente de correlação entre os retornos das duas ações é 0,38.
+
+a) Calcule o retorno esperado e o desvio padrão da carteira do investidor;
+b) Admita que o investidor venda hoje 2000 ações da Cia B. Calcule o retorno e o desvio
+padrão de sua nova carteira.
+
+```{r}
+Ativo.A = 1000; preco.A = 180; ret.esp.A = 0.15; sd.A = 0.08
+Ativo.B = 3000; preco.B = 90; ret.esp.B = 0.2; sd.B = 0.2;
+corrAB = 0.38
+montante = Ativo.A*preco.A + Ativo.B*preco.B
+wa = Ativo.A*preco.A/montante
+wb = Ativo.B*preco.B/montante
+
+# Alternativa a)
+ret.esp = round(wa * ret.esp.A + wb * ret.esp.B,4)
+sd.cart = round(sqrt(sd.A^2 * wa^2 + sd.B^2 * wb^2 + 2 * wa * wb * corrAB * sd.A * sd.B),4)
+
+cat("Retorno esperado da carteira: ", ret.esp,"\n\n",
+    "Desvio-padrão da carteira: ", sd.cart, sep = "")
+
+# Alternativa b)
+Ativo.B = 1000
+montante = Ativo.A*preco.A + Ativo.B*preco.B
+wa = Ativo.A*preco.A/montante
+wb = Ativo.B*preco.B/montante
+
+ret.esp = round(wa * ret.esp.A + wb * ret.esp.B,4)
+sd.cart = round(sqrt(sd.A^2 * wa^2 + sd.B^2 * wb^2 + 2 * wa * wb * corrAB * sd.A * sd.B),4)
+
+cat("Novo retorno esperado da carteira: ", ret.esp,"\n\n",
+    "Novo desvio-padrão da carteira: ", sd.cart, sep = "")
+```
+
+### Questão 7)
+### Você tem uma carteira de $ 2 milhões que consiste em $ 100.000 de investimentos em cada um dos 20 diferentes ativos. A carteira tem um beta igual a 1,1. Você está considerando a venda de $ 100.000 de uma ação cujo beta é igual a 0,9, a fim de utilizar esses recursos para comprar outra ação que tenha um beta igual a 1,4. Qual será o novo beta de sua carteira após essa transação?
+
+```{r}
+p = 1/20; ß.cart = 1.1; beta1 = .9; beta2 = 1.4
+
+# 1.1 = 1/20 * (.9+1.4+x)
+# 1.1 = 1/20*.9 + 1/20*1.4 + 1/20*x
+x = (1.1 - 1/20*.9 - 1/20*1.4)*20
+
+ß.cart2 = 2/20*1.4 + 1/20*x
+
+cat("O novo beta da carteira é de:", ß.cart2)
+
+```
+
+### Questão 8
+### Sabe-se que a taxa livre de risco de é de 5% a.a. o retorno da carteira de mercado é 15% a.a. Os betas de três ativos (A, B e C) são:
+
+```{r}
+df = data.frame(Ativo_A = 0.7,
+                Ativo_B = 1,
+                Ativo_C = 1.5,
+                row.names = "Beta")
+df
+
+```
+
+a) Determine a taxa de retorno requerida para os Ativos A, B e C com base no modelo
+CAPM;
+
+```{r}
+tlr = 0.05; kcm = 0.15
+
+ksA = tlr + (kcm - tlr)*df[1,1]
+ksB = tlr + (kcm - tlr)*df[1,2]
+ksC = tlr + (kcm - tlr)*df[1,3]
+
+cat("Retorno requerido para A: ", ksA, "\n\n",
+    "Retorno requerido para B: ", ksB, "\n\n",
+    "Retorno requerido para C: ", ksC, sep = "")
+
+```
+
+b) Refaça seus cálculos, admitindo que a carteira de mercado tivesse um retorno de 12%
+
+```{r}
+tlr = 0.05; kcm = 0.12
+
+ksA = tlr + (kcm - tlr)*df[1,1]
+ksB = tlr + (kcm - tlr)*df[1,2]
+ksC = tlr + (kcm - tlr)*df[1,3]
+
+cat("Retorno requerido para A: ", ksA, "\n\n",
+    "Retorno requerido para B: ", ksB, "\n\n",
+    "Retorno requerido para C: ", ksC, sep = "")
+
+```
+c) Determine o retorno esperado da carteira “C” composta por: 20% de A; 40% de B e
+40% de C
+
+```{r}
+ret.esp.cart = 0.2 * df[1,1] + 0.4 * df[1,2] + 0.4 * df[1,3]
+
+cat("Retorno esperado para 20% de A, 40% de B e 40% de C:", ret.esp.cart)
+
+```
+
+d) Determine o retorno esperado da carteira “D” composta por: 80% de A; 10% de B e
+10% de C
+
+```{r}
+ret.esp.cart = 0.8 * df[1,1] + 0.1 * df[1,2] + 0.1 * df[1,3]
+
+cat("Retorno esperado para 80% de A, 10% de B e 10% de C:", ret.esp.cart)
+
+```
+
+e) Intuitivamente qual carteira tem mais risco (Carteira de C ou D)?
+
+Intuitivamente, a carteira que apresenta maior risco é a C, pois o retorno esperado é de 1.14, superior a da carteira D que apresenta 0.81 de retorno esperado, pois conforme o retorno for maior o risco da carteira ou ativo também será maior.
+
+### Questão 9)
+### Taxa requerida de retorno: Pressuponha que a taxa livre de risco seja de 6% e que o retorno esperado do mercado seja de 13%. Qual é a taxa requerida de retorno de uma ação que tem beta de 0,7?
+
+```{r}
+tlr = 0.06; ret.esp.merc = 0.13
+
+ks = tlr + 0.7 * (ret.esp.merc - tlr)
+
+cat("Taxa requerida de retorno igual a:", ks)
+```
+
+### Questão 10)
+### Uma ação tem beta de 1,8. Um analista de títulos especializado nessa ação espera que seu retorno futuro seja de 18%. Imagine que a taxa livre de risco seja de 5% e que o prêmio por risco de mercado seja igual a 8%. Este analista é pessimista ou otimista com relação a essa ação, em comparação com as expectativas de mercado?
+
+```{r}
+beta = 1.8; ret.esp = 0.18; tlr = 0.05; pprm = 0.08
+
+ks = tlr + beta * (ret.esp - tlr) + pprm
+
+cat("Taxa requerida de retorno igual a:", ks,"\n",
+    "Dessa forma, como o retorno requerido é maior que a esperança de retorno, o analista é otimista quanto essa ação")
+
+```
+
+### Questão 11)
+### Um investidor analisando duas ações observou que:
+
+```{r}
+df = data.frame(prob = c(0.4, 0.6), 
+                ret.A = c(0.03, 0.15), 
+                ret.B = c(0.065, 0.065), 
+                row.names = c("Alta", "Baixa"))
+
+df
+
+```
+
+a) Calcule o retorno esperado e o desvio padrão da taxa de retorno dos dois títulos.
+
+b) Suponha que o investidor tenha investido 2.500 u.m. no título A e 3.500 u.m. no título B. Calcule o retorno esperado e o desvio padrão da taxa de retorno de sua carteira.
+
+c) Considerando a carteira formada no item anterior (2.500 u.m. no título A e 3.500 u.m. no título B), imagine que o investidor tenha emprestado adicionalmente de um amigo 40 unidades do título B, atualmente cotado a 50 u.m. cada, e tenha vendido todas essas ações. (prometeu devolver o mesmo número de ações daí a um ano). A seguir, comprou unidades do título A com o dinheiro obtido da venda de B, mais os 6.000 u.m. que possuía. Calcule o retorno esperado e o desvio padrão da taxa de retorno da carteira.
+
+```{r}
+# Alternativa a)
+ret.esp.A = sum(df[,1]*df[,2])
+ret.esp.B = sum(df[,1]*df[,3])
+
+sd.A = sqrt(sum(df[,1]^2*df[,2]) - ret.esp.A^2)
+sd.B = sqrt(sum(df[,1]^2*df[,3]) - ret.esp.B^2)
+covAB = sum(df[,1]*(df[,2]-ret.esp.A)*(df[,2]-ret.esp.B))
+
+ret.cart = ret.esp.A * WA + ret.esp.B * WB
+sd.cart = sqrt(sd.A^2 * WA^2 + sd.B^2 * WB^2 + 2 * WA * WB * covAB)
+
+print("Resposta da alternativa a)")
+print(data.frame(WA, WB, `Retorno Esperado` = ret.cart, `Risco da Carteira` = sd.cart))
+
+#wA = sd.B^2/(sd.A^2 + sd.B^2)
+#wB = 1-wA
+
+# Alternativa b)
+wA = 2500/6000
+wB = 1-wA
+
+ret.cart = ret.esp.A * wA + ret.esp.B * wB
+sd.cart = sqrt(sd.A^2 * wA^2 + sd.B^2 * wB^2 + 2 * wA * wB * covAB)
+
+print("Resposta da alternativa b)")
+print(data.frame(wA, wB, `Retorno Esperado` = ret.cart, `Risco da Carteira` = sd.cart))
+
+# Alternativa c)
+TA = 2500; TB = 3500; TBE = 40*50
+
+wA = (TA+TBE) / (TA+TB+TBE)
+wB = 1 - wA
+
+ret.cart = ret.esp.A * wA + ret.esp.B * wB
+sd.cart = sqrt(sd.A^2 * wA^2 + sd.B^2 * wB^2 + 2 * wA * wB * covAB)
+
+print("Resposta da alternativa c)")
+print(data.frame(wA, wB, `Retorno Esperado` = ret.cart, `Risco da Carteira` = sd.cart))
+```
+
+### Questão 12 
+### Você observou os seguintes retornos ao longo do tempo:
+
+```{r}
+df = data.frame(Anos = c(2014:2018), 
+                ret.X = c(0.14, 0.19, -0.16, 0.03, 0.2), 
+                ret.Y = c(0.13, 0.07, -0.05, 0.01, 0.11),
+                ret.M = c(0.12, 0.1, -0.12, 0.01, 0.15))
+df
+```
+
+Pressuponha que a taxa livre de risco seja de 6%, e que o prêmio de risco do mercado seja de
+5%.
+
+a) Quais os betas das Ações X e Y?
+b) Quais são as taxas de retorno requeridas das Ações X e Y?
+c) Qual a taxa de retorno requerida para uma carteira formada de 80% da Ação X e 20% da Ação Y?
+d) Caso a taxa esperada de retorno da Ação X seja 22%, a Ação X está sub ou superavaliada?
+
+```{r}
+
+tlv = 0.06; prm = 0.05
+
+# Alternativa a)
+beta.X = cov(df[,c(2,4)])[1,2]/var(df[,4])
+beta.Y = cov(df[,c(3,4)])[1,2]/var(df[,4])
+
+cat("Valor do beta de X igual a:", beta.X,
+    "Valor do beta de Y igual a:", beta.Y,
+    sep = "\n")
+
+# Alternativa b)
+KsX = tlv + (mean(df[,4]) - tlv)*beta.X
+KsY = tlv + (mean(df[,4]) - tlv)*beta.Y
+
+cat("Valor do retorno de X igual a:", KsX,
+    "Valor do retorno de Y igual a:", KsY,
+    sep = "\n")
+
+# Alternativa c)
+ret.cart = mean(df[,2]) * 0.8 + mean(df[,3]) * 0.2
+sd.cart = sqrt(var(df[,2]) * 0.8^2 + var(df[,3]) * 0.2^2 + 2 * 0.8 * 0.2 * cov(df[,2:3])[1,2])
+
+cat("Valor do retorno da carteira é igual a:", ret.cart,
+    sep = "\n")
+
+# Alternativa d)
+paste0("Taxa requerida de X: ", round(KsX,4)*100,"%")
+paste0("Taxa esperada de X: ", 22,"%")
+print("Como a taxa requerida é de 9.92% e a esperada é de 22% o título X está super-avaliado.")
+```
+
+### Questão 13 
+### Suponha que você tenha aplicado em apenas duas ações: A e B. Você acha que os retornos das ações dependem de três estados seguintes da economia, que têm probabilidades iguais de ocorrência:
+
+```{r}
+df = data.frame(ret.A = c(0.063, 0.105, 0.156),
+                ret.B = c(-0.037, 0.064, 0.253),
+                row.names = c("Baixa","Normal","Alta"))
+df
+```
+
+a) Calcular o retorno esperado e o risco (desvio padrão) dos retornos de cada ação.
+b) Calcular a covariância e a correlação entre os retornos das duas ações.
+
+```{r}
+# Alternativa a)
+cat("Retorno esperado de A:",round(mean(df[,1]),4))
+cat("Retorno esperado de B:",round(mean(df[,2]),4))
+
+sd.A = sqrt(sum((1/3)^2 * df[,1]) - mean(df[,1])^2)
+sd.B = sqrt(sum((1/3)^2 * df[,2]) - mean(df[,2])^2)
+
+cat("Desvio-padrão de A:",round(sd.A,4))
+cat("Desvio-padrão de B:",round(sd.B,4))
+
+# Alternativa b)
+covAB = sum(1/3*(df[,1]-mean(df[,1]))*(df[,2]-mean(df[,2])))
+corrAB = covAB/(sd.A*sd.B)
+
+cat("Covariância entre A e B igual a:", covAB,
+    "\nCorrelação entre A e B igual a:", corrAB)
+```
+
+### Questão 14 
+### Com base nas informações apresentadas no quadro, abaixo, se tivesse que investir em apenas 1 ativo, qual deles escolheria?
+
+```{r}
+df = data.frame(Ativo.A = c(0.1, 0.08),
+                Ativo.B = c(0.17, 0.13),
+                Ativo.C = c(0.13, 0.09),
+                Ativo.D = c(0.22, 0.17),
+                Ativo.E = c(0.19, 0.15),
+                row.names = c("E[R]","SD"))
+df
+```
+
+Embora o ativo D tenha retorno de 22% o risco é o mais alto entre os ativos, de 17%. Logo escolheria o ativo B que apresenta retorno de 17% e risco de 13%
+
+### Questão 15
+### Com base nas informações apresentadas no quadro, abaixo, se tivesse que investir em 2 ativos, qual par deles escolheria admitindo 50% de investimento em cada?
+
+```{r}
+print(df)
+
+cat('
+A e E,  0.49
+B e C,  0.30
+B e D,  0.05 Escolheria essa aqui pq a correlação está próxima de 0, além dos ativos B e D apresentarem retorno esperado e desvio-padrão de 0.17 e 0.13 para B, 0.22 e 0.17 para D.
+D e E, -0.55
+')
+```
+
+### Questão 16
+### Com base nas informações apresentadas no quadro, abaixo, qual deve ser a quantidade de dinheiro a ser investida em A e B, admitindo-se que o investidor tenha R$ 10.000 disponível para investimento?
+
+```{r}
+df = data.frame(Ativo.A = c(0.1, 0.08, 0),
+                Ativo.B = c(0.17, 0.13, 0),
+                row.names = c("E[R]", "SD", "Corr(A,B)"))
+df
+
+wA = round(df[2,2]^2/(df[2,1]^2+df[2,2]^2),4)
+wB = 1-wA
+
+cat("O investidor deveria investir R$", wA*10000, "em A e R$", wB*10000, "em B.")
+```
+
+### Questão 17
+### Considere dois ativos, abaixo:
+
+```{r}
+df = data.frame(Ativo.A = c(0.14, 0.11, 0.52),
+                Ativo.B = c(0.27, 0.18, 0.52),
+                row.names = c("E[R]", "SD", "Corr(A,B)"))
+df
+```
+
+Qual deve ser a quantidade investida (%) em A e B que retorne uma carteira de menor risco possível?
+
+```{r}
+wA = round((df[2,2]^2-df[3,1]*df[2,1]*df[2,2])/
+             ((df[2,1]^2 + df[2,2]^2)-(2*df[3,1]*df[2,1]*df[2,2])),4)
+wB = 1-wA
+
+cat("O investidor deverá investir R$", wA*10000, "em A e R$", wB*10000, "em B.")
+```
+
+### Questão 18
+### Considerando a fronteira eficiente, abaixo (imagem na lista), você recomendaria um investidor alocar todo seu dinheiro em títulos de renda fixa (Bond)? Justifique
+
+### Resposta:
+Não seria recomendado investir 100% do capital em renda fixa (Bond), pois o risco é mais alto do que investir 75% em Bonds e 25% em Stocks, que apresenta risco menor e retorno acima do que depositar 100% em Bonds.
+A recomendação seria distribuir em 75% para Bonds e 25% para Stocks, onde licaliza-se a zona de menor risco e maior retorno.
+
+### Questão 19
+### Considerem-se as seguintes ações:
+
+```{r}
+print(data.frame(Beta = c(1.4, 0.7),
+                 Retorno = c(0.25, 0.14),
+                 row.names = c("TaxOver", "InnerCity")))
+```
+
+Suponha que o CAPM seja válido. De acordo com o CAPM qual é o retorno esperado do mercado? Qual é o valor da taxa livre de risco?
+
+```{r}
+beta.TO = 1.4; betaIC = 0.7; ret.TO = 0.25; ret.IC = 0.14
+
+# 0.25 = rf + 1.4*(rm - rf)
+# 0.25 = rf - 1.4*rf + 1.4*rm
+# 0.25 = -0.4*rf + 1.4*rm
+
+# 0.14 = rf + 0.7*(rm - rf)
+# 0.14 = rf - 0.7*rf + 0.7*rm
+# 0.14 = 0.3*rf + 0.7*rm
+
+# 0.25 = -0.4*rf + 1.4*rm
+# (0.14 = 0.3*rf + 0.7*rm) * -2
+# -0.28 = -0.6*rf - 1.4*rm
+#_____________________________
+# -0.03 = -rf + 0*rm
+rf = 0.03 # Taxa livre de risco
+
+# 0.25 = -0.4*0.03 + 1.4*rm
+rm = (0.25 + 0.4*0.03)/1.4
+# rm = 0.1871429 # Retorno esperado do mercado
+
+cat("Valor da taxa livre de risco: ", rf, "\n\n",
+    "Valor da taxa de mercado: ", rm, sep = "")
+```
+
+### Questão 20)
+### Suponha que seja observada a seguinte situação:
+
+```{r}
+df = data.frame(Prob = c(0.25, 0.5, 0.25),
+                Ret.A = c(-0.1, 0.1, 0.2),
+                Ret.B = c(-0.3, 0.05, 0.4),
+                row.names = c("Recessão", "Estabilidade", "Expansão"))
+
+df
+```
+
+a) Calcule o retorno esperado de cada ação
+b) Supondo que o CAPM seja válido e o beta da ação A seja 0,25 maior do que o beta da ação B, qual o valor do prêmio pelo risco?
+
+```{r}
+# Alternativa a)
+ret.esp.A = sum(df[,1] * df[,2])
+ret.esp.B = sum(df[,1] * df[,3])
+
+cat("Retorno esperado de A: ", ret.esp.A, "\n\n",
+    "Retorno esperado de B: ", ret.esp.B, sep = "")
+```
+
+### Questão 21)
+### Com base nas informações abaixo produza a Linha de Mercado de Títulos (LMT)
+
+a) No caso em que o prêmio pelo risco de mercado é igual a 5% e a taxa livre de risco é igual a 7%
+
+b) Suponha que um ativo tenha beta de -1 e retorno esperado igual a 4%. Coloque-o no gráfico desenhado no item (a). O ativo está corretamente avaliado? Caso contrário o que ocorrerá nesse mercado?
+
+c) Suponha que um ativo tem beta igual a 3 e retorno esperado de 20%. Coloque-o no gráfico desenhado no item (a). O ativo está corretamente avaliado? Se não estiver explique o que ocorrerá nesse mercado.
+
+```{r}
+# Alternativas a, b e c)
+ß = seq(-1, 3, 0.05)
+ks = 0.07 + (0.05 - 0.07)*ß
+
+ggplot()+
+  geom_line(aes(x = ß, y = ks), col = "red") +
+  geom_point(aes(x = ß[1], y = 0.07 + (0.05 - 0.07)*ß[1]), col = "blue") +
+  geom_point(aes(x = 3, y = 0.07 + (0.05 - 0.07)*3), col = "purple")
+
+ks1 = 0.07 + (0.05 - 0.07)*ß[1]
+ks2 = 0.07 + (0.05 - 0.07)*3
+
+paste0("Valor da taxa requerida de retorno para ß = -1 é de: ", ks1*100, "%. ",
+       "Logo o título está super-avaliado, pois a taxa de retorno esperado é de 4%, inferior ao requerido para o título. ",
+       "Dessa forma, o mercado poderá ser deficitário ou apresentar retornos abaixo do esperado.")
+
+paste0("Valor da taxa requerida de retorno para ß = 3 é de: ", ks2*100, "%. ",
+       "Logo o título está sub-avaliado, pois a taxa de retorno esperado é de 20%, superior ao requerido para o título. ",
+       "Dessa forma, o mercado poderá ser superavitário ou apresentar retornos acima do esperado.")
+```
+
+### Questão 22)
+### Suponha que a taxa livre de risco seja de 6,3% e que a carteira de mercado tenha retorno esperado de 14,8%. A carteira de mercado também possui variância de 0,0121. A carteira Z tem um coeficiente de correlação com o mercado igual a 0,45 e sua variância é 0,0169. De acordo com o CAPM, qual é a taxa esperada de retorno da Carteira Z?
+
+```{r}
+tlr = 0.063; ret.esp.merc = 0.148; var.merc = 0.0121
+corrZM = 0.45; var.Z = 0.0169
+
+ks = round(tlr + (corrZM*sqrt(var.merc)*sqrt(var.Z)/var.merc) * (ret.esp.merc - tlr),4)
+
+cat("Taxa esperada de retorno igual a", ks)
+
+```
+
+### Questão 23)
+### Suponha que você tenha aplicado R$ 30.000 nas quatro ações a seguir:
+
+```{r}
+df = data.frame(Montante = c(5, 10, 8, 7)*1000,
+                Beta = c(0.75, 1.1, 1.36, 1.88),
+                row.names = paste0("Ação ",LETTERS[1:4]))
+df
+```
+
+A taxa livre de risco é igual a 4% e o retorno esperado da carteira de mercado é 15%. Com base
+no CAPM, qual é o retorno esperado da carteira anterior?
+
+```{r}
+tlr = 0.04; ret.esp.merc = 0.15
+
+beta.cart = sum(df[,1]/sum(df[,1]) * df[,2])
+
+ks.cart = round(tlr + beta.cart*(ret.esp.merc - tlr),4)
+
+cat("O retorno esperado da carteira pelo CAPM é de", ks.cart)
+
+```
+
+### Questão 24)
+### Considerando uma fronteira eficiente composta por dois ativos, responda:
+
+a) Dependendo dos pesos alocados no Ativo A (ativo de risco) e B (ativo sem risco) é possível estar posicionado dentro da fronteira?
+
+b) Dependendo dos pesos alocados no Ativo A (ativo d
+
+Alternativa a) Sim
+Alternativa b) Sim
+
+### Questão 25)
+### Considerando uma fronteira eficiente composta por três ativos de risco, é possível observar a superfície retorno-volatilidade exibida na próxima página. Neste sentido, responda:
+
+a) Onde estaria o ponto que representa uma carteira de mínimo risco?
+b) Que ativos dominariam esse ponto?
+c) Reconheça as três fronteiras bidimensionais formadas por combinações par a par dos três ativos.
+
+
+
+
+
